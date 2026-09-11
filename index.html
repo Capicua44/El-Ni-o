@@ -72,7 +72,8 @@
         if (typeof mqtt === 'undefined') {
             alert("Error: La librería MQTT no cargó. Revisa tu conexión.");
         } else {
-            const client = mqtt.connect("wss://broker.hivemq.com:8884/mqtt");
+            // Migrado a EMQX para asegurar estabilidad en WebSockets (WSS) y evitar cortes con el ESP32
+            const client = mqtt.connect("wss://broker.emqx.io:8084/mqtt");
 
             client.on("connect", () => {
                 console.log("MQTT conectado");
@@ -80,6 +81,7 @@
             });
 
             client.on("message", (topic, msg) => {
+                console.log("Mensaje recibido:", msg.toString());
                 let d;
                 try { d = JSON.parse(msg.toString()); } catch(e) { return; }
                 
