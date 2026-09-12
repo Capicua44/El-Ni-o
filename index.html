@@ -4,8 +4,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>ESP32 Boat System - Capicua</title>
-    <!-- MQTT Client Library -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/paho-mqtt/1.0.1/mqttws31.min.js"></script>
+    <!-- Librería MQTT moderna compatible con WSS -->
+    <script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
     <style>
         body {
             font-family: Arial, sans-serif;
@@ -112,8 +112,9 @@
     <!-- Estado General -->
     <div class="card">
         <h2>Conectividad</h2>
-        <p>MQTT: <span id="st_mq" class="status-badge status-off">OFF</span> | 
-            Bluetooth: <span id="st_bt" class="status-badge status-off">OFF</span></p>
+        <p>WiFi: <span id="st_wifi" class="status-badge status-off">OFF</span> | 
+           MQTT: <span id="st_mq" class="status-badge status-off">OFF</span> | 
+           Bluetooth: <span id="st_bt" class="status-badge status-off">OFF</span></p>
     </div>
 
     <!-- Navegación / GPS -->
@@ -125,7 +126,6 @@
             <div class="metric">GPS Fix<br><span id="val_gps">NO</span></div>
             <div class="metric">Vel. Viento<br><span id="val_ws">0.0</span> kts</div>
             <div class="metric">Ángulo Viento<br><span id="val_wa">0</span>°</div>
-            <div class="metric">Profundidad<br><span id="val_depth">0.0</span> m</div>
         </div>
     </div>
 
@@ -167,94 +167,75 @@
 </div>
 
 <script>
-    // Configuración del WebSocket MQTT
-    const mqttHost = "broker.hivemq.com"; 
-    const mqttPort = 8000; 
-    const clientId = "WebClient_" + Math.random().toString(16).substr(2, 8);
-    
-    const client = new Paho.MQTT.Client(mqttHost, Number(mqttPort), clientId);
+    if (typeof mqtt === 'undefined') {
+        alert("Error: La librería MQTT no cargó correctamente.");
+    } else {
+        // Conexión segura por WebSockets (evita bloqueos en navegadores modernos)
+        const client = mqtt.connect("wss://broker.hivemq.com:8884/mqtt");
 
-    client.onConnectionLost = onConnectionLost;
-    client.onMessageArrived = onMessageArrived;
+        client.on("connect", () => {
+            console.log("Conectado al broker MQTT");
+            client.subscribe("boat2/data");
+        });
 
-    client.connect({
-        onSuccess: onConnect,
-        useSSL: false
-    });
-
-    function onConnect() {
-        console.log("Conectado al broker MQTT");
-        client.subscribe("boat2/data");
-    }
-
-    function onConnectionLost(responseObject) {
-        if (responseObject.errorCode !== 0) {
-            console.log("Conexión perdida: " + responseObject.errorMessage);
-        }
-    }
-
-    function onMessageArrived(message) {
-        if (message.destinationName === "boat2/data") {
-            try {
-                let data = JSON.parse(message.payloadString);
-
-                // Navegación
-                if(data.lat !== undefined) document.getElementById("val_lat").innerText = data.lat;
-                if(data.lon !== undefined) document.getElementById("val_lon").innerText = data.lon;
-                if(data.gps !== undefined) document.getElementById("val_gps").innerText = data.gps ? "SÍ" : "NO";
-                if(data.wind_speed !== undefined) document.getElementById("val_ws").innerText = data.wind_speed;
-                if(data.wind_angle !== undefined) document.getElementById("val_wa").innerText = Math.round(data.wind_angle);
-                if(data.depth !== undefined) document.getElementById("val_depth").innerText = data.depth;
-
-                // Baterías (bm, bs, bb) y Alarmas (am, as, ab)
-                if(data.bm !== undefined) {
-                    let elem = document.getElementById("val_bm");
-                    elem.innerText = data.bm;
-                    if(data.am) elem.classList.add("alarm"); else elem.classList.remove("alarm");
-                }
-                if(data.bs !== undefined) {
-                    let elem = document.getElementById("val_bs");
-                    elem.innerText = data.bs;
-                    if(data.as) elem.classList.add("alarm"); else elem.classList.remove("alarm");
-                }
-                if(data.bb !== undefined) {
-                    let elem = document.getElementById("val_bb");
-                    elem.innerText = data.bb;
-                    if(data.ab) elem.classList.add("alarm"); else elem.classList.remove("alarm");
-                }
-
-                // Estados de Salidas (o1, o2, o3, o4 = GPS, o5 = Deshumidificador)
-                if(data.o1 !== undefined) document.getElementById("btn_o1").checked = data.o1;
-                if(data.o2 !== undefined) document.getElementById("btn_o2").checked = data.o2;
-                if(data.o3 !== undefined) document.getElementById("btn_o3").checked = data.o3;
-                if(data.o4 !== undefined) document.getElementById("btn_o4").checked = data.o4;
-                if(data.o5 !== undefined) document.getElementById("btn_o5").checked = data.o5;
-
-                // Estados de Conexión
-                if(data.mq !== undefined) {
-                    let mqElem = document.getElementById("st_mq");
-                    mqElem.innerText = data.mq;
-                    mqElem.className = "status-badge " + (data.mq === "OK" ? "status-ok" : "status-off");
-                }
-                if(data.bt !== undefined) {
-                    let btElem = document.getElementById("st_bt");
-                    btElem.innerText = data.bt;
-                    btElem.className = "status-badge " + (data.bt === "OK" ? "status-ok" : "status-off");
-                }
-
-            } catch (e) {
+        client.on("message", (topic, msg) => {
+            let d;
+            try { 
+                d = JSON.parse(msg.toString()); 
+            } catch(e) { 
                 console.error("Error al parsear JSON:", e);
+                return; 
+            }
+            
+            // Estados de Conexión y LEDs
+            updateBadge("st_wifi", true, "OK", "OFF"); // Asumido OK al recibir datos del broker
+            updateBadge("st_mq", d.mq === "OK", d.mq || "OFF", "OFF");
+            updateBadge("st_bt", d.bt === "OK", d.bt || "OFF", "OFF");
+
+            // Navegación y Viento
+            if(d.lat !== undefined) document.getElementById("val_lat").innerText = d.lat;
+            if(d.lon !== undefined) document.getElementById("val_lon").innerText = d.lon;
+            if(d.gps !== undefined) document.getElementById("val_gps").innerText = d.gps ? "SÍ" : "NO";
+            if(d.wind_speed !== undefined) document.getElementById("val_ws").innerText = Number(d.wind_speed).toFixed(1);
+            if(d.wind_angle !== undefined) document.getElementById("val_wa").innerText = Math.round(d.wind_angle);
+
+            // Baterías y Alarmas
+            updateBattery("val_bm", d.bm, d.am);
+            updateBattery("val_bs", d.bs, d.as);
+            updateBattery("val_bb", d.bb, d.ab);
+
+            // Estados de Salidas (Checkboxes)
+            if(d.o1 !== undefined) document.getElementById("btn_o1").checked = d.o1;
+            if(d.o2 !== undefined) document.getElementById("btn_o2").checked = d.o2;
+            if(d.o3 !== undefined) document.getElementById("btn_o3").checked = d.o3;
+            if(d.o4 !== undefined) document.getElementById("btn_o4").checked = d.o4;
+            if(d.o5 !== undefined) document.getElementById("btn_o5").checked = d.o5;
+        });
+
+        function updateBadge(id, condition, textOk, textOff) {
+            let elem = document.getElementById(id);
+            if(elem) {
+                elem.innerText = condition ? textOk : textOff;
+                elem.className = "status-badge " + (condition ? "status-ok" : "status-off");
             }
         }
-    }
 
-    function toggleControl(cmdName, state) {
-        let payload = JSON.stringify({ cmd: cmdName, value: state });
-        let message = new Paho.MQTT.Message(payload);
-        message.destinationName = "boat2/cmd";
-        client.send(message);
+        function updateBattery(id, val, alarm) {
+            let elem = document.getElementById(id);
+            if(elem) {
+                elem.innerText = (val != null) ? val : "0.0";
+                if(alarm) {
+                    elem.classList.add("alarm");
+                } else {
+                    elem.classList.remove("alarm");
+                }
+            }
+        }
+
+        function toggleControl(cmdName, state) {
+            client.publish("boat2/cmd", JSON.stringify({ "cmd": cmdName, "value": state }));
+        }
     }
 </script>
-
 </body>
 </html>
