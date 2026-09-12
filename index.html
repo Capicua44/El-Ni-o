@@ -4,24 +4,136 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Painel Capicua</title>
-    <!-- Librería MQTT Original que funcionaba -->
+    <!-- Librería MQTT que sabemos que funciona perfectamente -->
     <script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
 
     <style>
-        body { margin:0; font-family:Arial,sans-serif; background:#63c7e8; color:#003344; }
-        .header { background:#005b75; color:white; text-align:center; padding:15px; font-size:24px; font-weight:bold; }
-        .connection { display:flex; justify-content:center; gap:15px; margin:12px; flex-wrap:wrap; }
-        .conn { background:white; padding:8px 12px; border-radius:12px; font-weight:bold; }
-        .led { width:12px; height:12px; display:inline-block; border-radius:50%; background:red; margin-right:5px; }
-        .card { background:white; margin:8px; padding:10px; border-radius:14px; text-align:center; box-shadow:0 2px 5px #777; }
-        .title { font-size:13px; color:#006080; font-weight:bold; }
-        .value { font-size:25px; font-weight:bold; color:#008000; margin-top:5px; }
-        .row { display:flex; justify-content:center; gap:8px; flex-wrap:wrap; }
-        .row .card { flex:1; min-width:90px; }
-        .alarm { color:red !important; }
-        .button { background:#006080; color:white; cursor:pointer; }
-        .button.on { background:#FFD700; color:#000; }
-        .button.off { background:#AAAAAA; color:#FFFFFF; }
+        body { 
+            margin: 0; 
+            font-family: Arial, sans-serif; 
+            background: #121212; 
+            color: #e0e0e0; 
+        }
+        .header { 
+            background: #1e1e1e; 
+            color: #ffffff; 
+            text-align: center; 
+            padding: 15px; 
+            font-size: 24px; 
+            font-weight: bold; 
+            border-bottom: 2px solid #333;
+        }
+        .connection { 
+            display: flex; 
+            justify-content: center; 
+            gap: 15px; 
+            margin: 12px; 
+            flex-wrap: wrap; 
+        }
+        .conn { 
+            background: #1e1e1e; 
+            color: #e0e0e0;
+            padding: 8px 12px; 
+            border-radius: 12px; 
+            font-weight: bold; 
+            box-shadow: 0 2px 5px rgba(0,0,0,0.3);
+        }
+        .led { 
+            width: 12px; 
+            height: 12px; 
+            display: inline-block; 
+            border-radius: 50%; 
+            background: red; 
+            margin-right: 5px; 
+        }
+        .card { 
+            background: #1e1e1e; 
+            color: #e0e0e0;
+            margin: 8px; 
+            padding: 10px; 
+            border-radius: 14px; 
+            text-align: center; 
+            box-shadow: 0 2px 5px rgba(0,0,0,0.3); 
+        }
+        .title { 
+            font-size: 13px; 
+            color: #4CAF50; 
+            font-weight: bold; 
+        }
+        .value { 
+            font-size: 25px; 
+            font-weight: bold; 
+            color: #ffffff; 
+            margin-top: 5px; 
+        }
+        .row { 
+            display: flex; 
+            justify-content: center; 
+            gap: 8px; 
+            flex-wrap: wrap; 
+        }
+        .row .card { 
+            flex: 1; 
+            min-width: 90px; 
+        }
+        .alarm { 
+            color: #ff5252 !important; 
+        }
+
+        /* Estilo para las filas de control deslizante (Toggle Switch) */
+        .control-card {
+            background: #1e1e1e;
+            margin: 8px;
+            padding: 12px 15px;
+            border-radius: 14px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.3);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .control-title {
+            font-size: 15px;
+            color: #ffffff;
+            font-weight: bold;
+        }
+
+        /* Toggle Switch CSS */
+        .switch {
+            position: relative;
+            display: inline-block;
+            width: 50px;
+            height: 24px;
+        }
+        .switch input { 
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+        .slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background-color: #555;
+            transition: .4s;
+            border-radius: 24px;
+        }
+        .slider:before {
+            position: absolute;
+            content: "";
+            height: 16px;
+            width: 16px;
+            left: 4px;
+            bottom: 4px;
+            background-color: white;
+            transition: .4s;
+            border-radius: 50%;
+        }
+        input:checked + .slider {
+            background-color: #2196F3;
+        }
+        input:checked + .slider:before {
+            transform: translateX(26px);
+        }
     </style>
 </head>
 
@@ -56,15 +168,26 @@
         <div class="card"><div class="title">PROA</div><div class="value" id="bat_b">--</div></div>
     </div>
 
-    <div class="row">
-        <div class="card button off" id="out1"><div class="title">GPS</div><div class="value">OFF</div></div>
-        <div class="card button off" id="out2"><div class="title">Instrumentos</div><div class="value">OFF</div></div>
-        <div class="card button off" id="out3"><div class="title">Luz de Top</div><div class="value">OFF</div></div>
+    <!-- Controles con interruptores deslizantes y nombres asignados -->
+    <div class="control-card">
+        <span class="control-title">GPS</span>
+        <label class="switch"><input type="checkbox" id="btn_o1" onclick="toggleControl('o1', this.checked)"><span class="slider"></span></label>
     </div>
-
-    <div class="row">
-        <div class="card button off" id="out4"><div class="title">Desumidificador</div><div class="value">OFF</div></div>
-        <div class="card button off" id="out5"><div class="title">Camara</div><div class="value">OFF</div></div>
+    <div class="control-card">
+        <span class="control-title">Instrumentos</span>
+        <label class="switch"><input type="checkbox" id="btn_o2" onclick="toggleControl('o2', this.checked)"><span class="slider"></span></label>
+    </div>
+    <div class="control-card">
+        <span class="control-title">Luz de Top</span>
+        <label class="switch"><input type="checkbox" id="btn_o3" onclick="toggleControl('o3', this.checked)"><span class="slider"></span></label>
+    </div>
+    <div class="control-card">
+        <span class="control-title">Desumidificador</span>
+        <label class="switch"><input type="checkbox" id="btn_o4" onclick="toggleControl('o4', this.checked)"><span class="slider"></span></label>
+    </div>
+    <div class="control-card">
+        <span class="control-title">Camara</span>
+        <label class="switch"><input type="checkbox" id="btn_o5" onclick="toggleControl('o5', this.checked)"><span class="slider"></span></label>
     </div>
 
     <script>
@@ -97,11 +220,11 @@
                 updateBattery("bat_s", d.bs, d.as);
                 updateBattery("bat_b", d.bb, d.ab);
 
-                updateOutput("out1", d.o1);
-                updateOutput("out2", d.o2);
-                updateOutput("out3", d.o3);
-                updateOutput("out4", d.o4);
-                updateOutput("out5", d.o5);
+                if(d.o1 !== undefined) document.getElementById("btn_o1").checked = d.o1;
+                if(d.o2 !== undefined) document.getElementById("btn_o2").checked = d.o2;
+                if(d.o3 !== undefined) document.getElementById("btn_o3").checked = d.o3;
+                if(d.o4 !== undefined) document.getElementById("btn_o4").checked = d.o4;
+                if(d.o5 !== undefined) document.getElementById("btn_o5").checked = d.o5;
             });
 
             function led(id, state) { 
@@ -119,22 +242,9 @@
                 }
             }
 
-            function updateOutput(id, state) {
-                let e = document.getElementById(id);
-                if(!e) return;
-                e.className = state ? "card button on" : "card button off";
-                e.querySelector(".value").innerHTML = state ? "ON" : "OFF";
+            function toggleControl(cmdName, state) {
+                client.publish("boat2/cmd", JSON.stringify({ "cmd": cmdName, "value": state }));
             }
-
-            function command(cmd, state) {
-                client.publish("boat2/cmd", JSON.stringify({ "cmd": cmd, "value": state }));
-            }
-
-            document.getElementById("out1").onclick = () => command("o1", !document.getElementById("out1").classList.contains("on"));
-            document.getElementById("out2").onclick = () => command("o2", !document.getElementById("out2").classList.contains("on"));
-            document.getElementById("out3").onclick = () => command("o3", !document.getElementById("out3").classList.contains("on"));
-            document.getElementById("out4").onclick = () => command("o4", !document.getElementById("out4").classList.contains("on"));
-            document.getElementById("out5").onclick = () => command("o5", !document.getElementById("out5").classList.contains("on"));
         }
     </script>
 </body>
