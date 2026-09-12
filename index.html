@@ -1,259 +1,581 @@
-<!DOCTYPE html>
-<html lang="es">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ESP32 Boat System - Capicua</title>
-    <!-- MQTT Client Library -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/paho-mqtt/1.0.1/mqttws31.min.js"></script>
-    <style>
-        body {
-            font-family: Arial, sans-serif;
-            background-color: #121212;
-            color: #e0e0e0;
-            margin: 0;
-            padding: 20px;
-        }
-        h1, h2 {
-            color: #ffffff;
-            border-bottom: 2px solid #333;
-            padding-bottom: 5px;
-        }
-        .container {
-            max-width: 800px;
-            margin: auto;
-        }
-        .card {
-            background-color: #1e1e1e;
-            border-radius: 8px;
-            padding: 15px;
-            margin-bottom: 20px;
-            box-shadow: 0 4px 6px rgba(0,0,0,0.3);
-        }
-        .grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-            gap: 15px;
-        }
-        .metric {
-            background: #2a2a2a;
-            padding: 10px;
-            border-radius: 5px;
-            text-align: center;
-        }
-        .metric span {
-            font-size: 1.5em;
-            font-weight: bold;
-            color: #4CAF50;
-        }
-        .alarm {
-            color: #ff5252 !important;
-        }
-        .control-row {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            padding: 8px 0;
-            border-bottom: 1px solid #333;
-        }
-        /* Toggle Switch */
-        .switch {
-            position: relative;
-            display: inline-block;
-            width: 50px;
-            height: 24px;
-        }
-        .switch input { 
-            opacity: 0;
-            width: 0;
-            height: 0;
-        }
-        .slider {
-            position: absolute;
-            cursor: pointer;
-            top: 0; left: 0; right: 0; bottom: 0;
-            background-color: #ccc;
-            transition: .4s;
-            border-radius: 24px;
-        }
-        .slider:before {
-            position: absolute;
-            content: "";
-            height: 16px;
-            width: 16px;
-            left: 4px;
-            bottom: 4px;
-            background-color: white;
-            transition: .4s;
-            border-radius: 50%;
-        }
-        input:checked + .slider {
-            background-color: #2196F3;
-        }
-        input:checked + .slider:before {
-            transform: translateX(26px);
-        }
-        .status-badge {
-            display: inline-block;
-            padding: 3px 8px;
-            border-radius: 4px;
-            font-size: 0.9em;
-            font-weight: bold;
-        }
-        .status-ok { background-color: #2e7d32; color: white; }
-        .status-off { background-color: #c62828; color: white; }
-    </style>
-</head>
-<body>
+//==================================================
+// ESP32 BOAT SYSTEM - DUAL CORE + GPS NATIVO
+// Bluetooth MiniPlex (Solo Instrumentos/Viento)
+// GPS Físico AT6558R (Solo Latitud y Longitud)
+// Con Salidas Adicionales: OUT1, OUT2, OUT3, OUT4, OUT5
+//==================================================
 
-<div class="container">
-    <h1>ESP32 Boat System - Capicua</h1>
-    
-    <!-- Estado General -->
-    <div class="card">
-        <h2>Conectividad</h2>
-        <p>MQTT: <span id="st_mq" class="status-badge status-off">OFF</span> | 
-           Bluetooth: <span id="st_bt" class="status-badge status-off">OFF</span></p>
-    </div>
+#include <WiFi.h>
+#include <PubSubClient.h>
+#include <BluetoothSerial.h>
+#include <ArduinoJson.h>
 
-    <!-- Navegación / GPS -->
-    <div class="card">
-        <h2>Navegación</h2>
-        <div class="grid">
-            <div class="metric">Latitud<br><span id="val_lat">0.0</span></div>
-            <div class="metric">Longitud<br><span id="val_lon">0.0</span></div>
-            <div class="metric">GPS Fix<br><span id="val_gps">NO</span></div>
-            <div class="metric">Vel. Viento<br><span id="val_ws">0.0</span> kts</div>
-            <div class="metric">Ángulo Viento<br><span id="val_wa">0</span>°</div>
-        </div>
-    </div>
+//==================================================
+// WIFI
+//==================================================
 
-    <!-- Baterías -->
-    <div class="card">
-        <h2>Baterías</h2>
-        <div class="grid">
-            <div class="metric">Motor (bm)<br><span id="val_bm">0.0</span> V</div>
-            <div class="metric">Servicio (bs)<br><span id="val_bs">0.0</span> V</div>
-            <div class="metric">Proa (bb)<br><span id="val_bb">0.0</span> V</div>
-        </div>
-    </div>
+const char* ssid = "Capicua";
+const char* password = "123454321";
 
-    <!-- Salidas y Controles -->
-    <div class="card">
-        <h2>Control de Salidas</h2>
-        
-        <div class="control-row">
-            <span>Salida 1 (o1)</span>
-            <label class="switch"><input type="checkbox" id="btn_o1" onclick="toggleControl('o1', this.checked)"><span class="slider"></span></label>
-        </div>
-        <div class="control-row">
-            <span>Salida 2 (o2)</span>
-            <label class="switch"><input type="checkbox" id="btn_o2" onclick="toggleControl('o2', this.checked)"><span class="slider"></span></label>
-        </div>
-        <div class="control-row">
-            <span>Salida 3 (o3)</span>
-            <label class="switch"><input type="checkbox" id="btn_o3" onclick="toggleControl('o3', this.checked)"><span class="slider"></span></label>
-        </div>
-        <div class="control-row">
-            <span>GPS Control / Chave GPS (o4)</span>
-            <label class="switch"><input type="checkbox" id="btn_o4" onclick="toggleControl('o4', this.checked)"><span class="slider"></span></label>
-        </div>
-        <div class="control-row">
-            <span>Deshumidificador (o5)</span>
-            <label class="switch"><input type="checkbox" id="btn_o5" onclick="toggleControl('o5', this.checked)"><span class="slider"></span></label>
-        </div>
-    </div>
-</div>
+WiFiClient espClient;
+PubSubClient client(espClient);
+String wifiStatus = "OFF";
 
-<script>
-    // Configuración del WebSocket MQTT (Ajustar IP/Broker y Puerto WebSockets según corresponda)
-    const mqttHost = "broker.hivemq.com"; 
-    const mqttPort = 8000; // Puerto WS público común, cambiar si usa Mosquitto local con WS (ej: 9001)
-    const clientId = "WebClient_" + Math.random().toString(16).substr(2, 8);
-    
-    const client = new Paho.MQTT.Client(mqttHost, Number(mqttPort), clientId);
+//==================================================
+// MQTT
+//==================================================
 
-    client.onConnectionLost = onConnectionLost;
-    client.onMessageArrived = onMessageArrived;
+const char* mqtt_server = "broker.hivemq.com";
+const int mqtt_port = 1883;
+const char* topicData = "boat2/data";
+const char* topicStatus = "boat2/status";
+const char* topicCmd = "boat2/cmd";
+String mqttStatus = "OFF";
 
-    client.connect({
-        onSuccess: onConnect,
-        useSSL: false
-    });
+//==================================================
+// BLUETOOTH MINIPLEX (CORE 0)
+//==================================================
 
-    function onConnect() {
-        console.log("Conectado al broker MQTT");
-        client.subscribe("boat2/data");
+BluetoothSerial SerialBT;
+const char* btRemoteName = "MiniPlex-BT";
+const char* btPin = "0000";
+String btStatus = "OFF";
+bool btEnabled = true;
+
+unsigned long lastBTCheck = 0;
+const unsigned long BT_INTERVAL = 10000;
+String btBuffer = "";
+
+//==================================================
+// GPS FÍSICO NATIVO (UART2 - GPIO 16 / 17)
+//==================================================
+
+String gpsBuffer = "";
+const unsigned long GPS_BAUD = 9600;
+
+//==================================================
+// PROTECCION DATOS ENTRE CORES
+//==================================================
+
+portMUX_TYPE mux = portMUX_INITIALIZER_UNLOCKED;
+
+//==================================================
+// DATOS NAVEGACION (SOLO LAT/LON)
+//==================================================
+
+double latitude = 0;
+double longitude = 0;
+bool gpsFix = false;
+unsigned long lastGPS = 0;
+
+float windSpeed = 0;
+float windDir = 0;
+
+//==================================================
+// BATERIAS
+//==================================================
+
+const int PIN_BAT_MOTOR = 39;   // VP (GPIO 36)
+const int PIN_BAT_SERVICE = 34; // VN (GPIO 39)
+const int PIN_BAT_BOW = 36;     // GPIO 34
+
+float batMotor = 0;
+float batService = 0;
+float batBow = 0;
+
+bool alarmMotor = false;
+bool alarmService = false;
+bool alarmBow = false;
+
+const float MOTOR_LOW = 12.0;
+const float SERVICE_LOW = 11.8;
+const float BOW_LOW = 12.0;
+
+//==================================================
+// SALIDAS CONTROLADAS POR WEB / MQTT
+//==================================================
+
+#define OUT1 21
+#define OUT2 19
+#define OUT3 18
+#define OUT4 4   // GPS Control
+#define OUT5 5   // Deshumidificador
+
+bool out1 = false;
+bool out2 = false;
+bool out3 = false;
+bool out4 = false;
+bool out5 = false;
+
+// Prototipos
+void readBluetooth();
+void checkBluetooth();
+void readGPSHardware();
+void parseGPSNMEA(String s);
+void parseMiniPlexNMEA(String s);
+
+//==================================================
+// CALLBACK MQTT
+//==================================================
+
+void mqttCallback(char* topic, byte* payload, unsigned int length)
+{
+    StaticJsonDocument<256> doc;
+    DeserializationError error = deserializeJson(doc, payload, length);
+
+    if(error)
+    {
+        Serial.println("ERROR JSON MQTT");
+        return;
     }
 
-    function onConnectionLost(responseObject) {
-        if (responseObject.errorCode !== 0) {
-            console.log("Conexión perdida: " + responseObject.errorMessage);
-        }
+    const char* cmd = doc["cmd"] | "";
+    bool value = doc["value"] | false;
+
+    if(strcmp(cmd, "o1") == 0)
+    {
+        out1 = value;
+        digitalWrite(OUT1, !out1);
+    }
+    else if(strcmp(cmd, "o2") == 0)
+    {
+        out2 = value;
+        digitalWrite(OUT2, !out2);
+    }
+    else if(strcmp(cmd, "o3") == 0)
+    {
+        out3 = value;
+        digitalWrite(OUT3, !out3);
+    }
+    else if(strcmp(cmd, "o4") == 0)
+    {
+        out4 = value;
+        digitalWrite(OUT4, !out4);
+    }
+    else if(strcmp(cmd, "o5") == 0)
+    {
+        out5 = value;
+        digitalWrite(OUT5, !out5);
+    }
+}
+
+//==================================================
+// CONFIGURACION SALIDAS Y GPS HARDWARE
+//==================================================
+
+void setupOutputs()
+{
+    pinMode(OUT1, OUTPUT);
+    pinMode(OUT2, OUTPUT);
+    pinMode(OUT3, OUTPUT);
+    pinMode(OUT4, OUTPUT);
+    pinMode(OUT5, OUTPUT);
+
+    digitalWrite(OUT1, HIGH);
+    digitalWrite(OUT2, HIGH);
+    digitalWrite(OUT3, HIGH);
+    digitalWrite(OUT4, HIGH);
+    digitalWrite(OUT5, HIGH);
+}
+
+void setupGPSHardware()
+{
+    Serial2.begin(GPS_BAUD, SERIAL_8N1, 16, 17);
+    Serial.println("GPS Hardware inicializado a 9600 baudios (Serial2)");
+}
+
+//==================================================
+// INICIALIZA BLUETOOTH (CORE 0)
+//==================================================
+
+void setupBluetooth()
+{
+    Serial.println("Inicializando Bluetooth MiniPlex");
+
+    if(!SerialBT.begin("ESP32_BOAT", true))
+    {
+        Serial.println("ERROR Bluetooth");
+        while(true) { delay(1000); }
     }
 
-    function onMessageArrived(message) {
-        if (message.destinationName === "boat2/data") {
-            try {
-                let data = JSON.parse(message.payloadString);
+    SerialBT.setPin(btPin, 4);
+    delay(1000);
+    SerialBT.connect(btRemoteName);
 
-                // Navegación
-                if(data.lat !== undefined) document.getElementById("val_lat").innerText = data.lat;
-                if(data.lon !== undefined) document.getElementById("val_lon").innerText = data.lon;
-                if(data.gps !== undefined) document.getElementById("val_gps").innerText = data.gps ? "SÍ" : "NO";
-                if(data.wind_speed !== undefined) document.getElementById("val_ws").innerText = data.wind_speed;
-                if(data.wind_angle !== undefined) document.getElementById("val_wa").innerText = data.wind_angle;
+    unsigned long t0 = millis();
+    while(millis() - t0 < 15000)
+    {
+        if(SerialBT.connected())
+        {
+            btStatus = "OK";
+            Serial.println("MINIPLEX CONECTADO");
+            return;
+        }
+        delay(500);
+    }
+    btStatus = "OFF";
+    Serial.println("MINIPLEX NO CONECTADO");
+}
 
-                // Baterías (bm, bs, bb) y Alarmas (am, as, ab)
-                if(data.bm !== undefined) {
-                    let elem = document.getElementById("val_bm");
-                    elem.innerText = data.bm;
-                    if(data.am) elem.classList.add("alarm"); else elem.classList.remove("alarm");
-                }
-                if(data.bs !== undefined) {
-                    let elem = document.getElementById("val_bs");
-                    elem.innerText = data.bs;
-                    if(data.as) elem.classList.add("alarm"); else elem.classList.remove("alarm");
-                }
-                if(data.bb !== undefined) {
-                    let elem = document.getElementById("val_bb");
-                    elem.innerText = data.bb;
-                    if(data.ab) elem.classList.add("alarm"); else elem.classList.remove("alarm");
-                }
+//==================================================
+// TASK BLUETOOTH (CORE 0)
+//==================================================
 
-                // Estados de Salidas (o1, o2, o3, o4 = GPS, o5 = Deshumidificador)
-                if(data.o1 !== undefined) document.getElementById("btn_o1").checked = data.o1;
-                if(data.o2 !== undefined) document.getElementById("btn_o2").checked = data.o2;
-                if(data.o3 !== undefined) document.getElementById("btn_o3").checked = data.o3;
-                if(data.o4 !== undefined) document.getElementById("btn_o4").checked = data.o4;
-                if(data.o5 !== undefined) document.getElementById("btn_o5").checked = data.o5;
-
-                // Estados de Conexión
-                if(data.mq !== undefined) {
-                    let mqElem = document.getElementById("st_mq");
-                    mqElem.innerText = data.mq;
-                    mqElem.className = "status-badge " + (data.mq === "OK" ? "status-ok" : "status-off");
-                }
-                if(data.bt !== undefined) {
-                    let btElem = document.getElementById("st_bt");
-                    btElem.innerText = data.bt;
-                    btElem.className = "status-badge " + (data.bt === "OK" ? "status-ok" : "status-off");
-                }
-
-            } catch (e) {
-                console.error("Error al parsear JSON:", e);
+void bluetoothTask(void *parameter)
+{
+    for(;;)
+    {
+        if(btEnabled)
+        {
+            if(SerialBT.connected())
+            {
+                btStatus = "OK";
+                readBluetooth();
+            }
+            else
+            {
+                btStatus = "OFF";
+                checkBluetooth();
             }
         }
+        vTaskDelay(50 / portTICK_PERIOD_MS);
+    }
+}
+
+//==================================================
+// RECONEXION BT
+//==================================================
+
+void checkBluetooth()
+{
+    if(millis() - lastBTCheck < BT_INTERVAL)
+        return;
+
+    lastBTCheck = millis();
+    bool ok = SerialBT.connect(btRemoteName);
+
+    if(ok && SerialBT.connected())
+    {
+        btStatus = "OK";
+    }
+    else
+    {
+        btStatus = "OFF";
+    }
+}
+
+//==================================================
+// CONVERSION Y PARSERS NMEA
+//==================================================
+
+double nmeaToDecimal(String value, String hemi)
+{
+    if (value.length() == 0) return 0;
+    double v = value.toDouble();
+    int deg = int(v / 100);
+    double minutes = v - (deg * 100);
+    double result = deg + (minutes / 60.0);
+    if(hemi == "S" || hemi == "W") result = -result;
+    return result;
+}
+
+void parseGPSNMEA(String s)
+{
+    s.trim();
+    if(!s.startsWith("$")) return;
+    int star = s.indexOf('*');
+    if(star > 0) s = s.substring(0, star);
+
+    String f[20];
+    int start = 0, count = 0;
+    while(count < 20)
+    {
+        int comma = s.indexOf(',', start);
+        if(comma < 0) { f[count++] = s.substring(start); break; }
+        f[count++] = s.substring(start, comma);
+        start = comma + 1;
     }
 
-    function toggleControl(cmdName, state) {
-        let payload = JSON.stringify({ cmd: cmdName, value: state });
-        let message = new Paho.MQTT.Message(payload);
-        message.destinationName = "boat2/cmd";
-        client.send(message);
+    portENTER_CRITICAL(&mux);
+    
+    if(s.startsWith("$GNGGA"))
+    {
+        int quality = f[6].toInt();
+        if(quality > 0)
+        {
+            gpsFix = true;
+            latitude = nmeaToDecimal(f[2], f[3]);
+            longitude = nmeaToDecimal(f[4], f[5]);
+            lastGPS = millis();
+        }
+        else
+        {
+            gpsFix = false;
+        }
     }
-</script>
 
-</body>
-</html>
-```[cite: 3]
+    portEXIT_CRITICAL(&mux);
+}
+
+void parseMiniPlexNMEA(String s)
+{
+    s.trim();
+    if(!s.startsWith("$")) return;
+    
+    if(s.startsWith("$GPGGA") || s.startsWith("$GPRMC") || s.startsWith("$GPGLL") || s.startsWith("$GNGGA") || s.startsWith("$GNRMC"))
+    {
+        return; 
+    }
+
+    int star = s.indexOf('*');
+    if(star > 0) s = s.substring(0, star);
+
+    String f[15];
+    int start = 0, count = 0;
+    while(count < 15)
+    {
+        int comma = s.indexOf(',', start);
+        if(comma < 0) { f[count++] = s.substring(start); break; }
+        f[count++] = s.substring(start, comma);
+        start = comma + 1;
+    }
+
+    portENTER_CRITICAL(&mux);
+    if(s.startsWith("$WIMWV"))
+    {
+        windDir = f[1].toFloat();
+        windSpeed = f[3].toFloat();
+    }
+    portEXIT_CRITICAL(&mux);
+}
+
+void readBluetooth()
+{
+    while(SerialBT.available())
+    {
+        char c = SerialBT.read();
+        if(c == '\r') continue;
+        if(c == '\n')
+        {
+            if(btBuffer.length() > 5) parseMiniPlexNMEA(btBuffer);
+            btBuffer = "";
+        }
+        else
+        {
+            btBuffer += c;
+            if(btBuffer.length() > 120) btBuffer = "";
+        }
+    }
+}
+
+void readGPSHardware()
+{
+    while(Serial2.available())
+    {
+        char c = Serial2.read();
+        if(c == '\r') continue;
+        if(c == '\n')
+        {
+            if(gpsBuffer.length() > 5) parseGPSNMEA(gpsBuffer);
+            gpsBuffer = "";
+        }
+        else
+        {
+            gpsBuffer += c;
+            if(gpsBuffer.length() > 120) gpsBuffer = "";
+        }
+    }
+}
+
+//==================================================
+// LECTURA BATERIAS
+//==================================================
+
+void readBatteries()
+{
+    batMotor = analogRead(PIN_BAT_MOTOR) * 3.3 / 4095.0 * 12.8;
+    batService = analogRead(PIN_BAT_SERVICE) * 3.3 / 4095.0 * 12.6;
+    batBow = analogRead(PIN_BAT_BOW) * 3.3 / 4095.0 * 12.8;
+
+    alarmMotor = batMotor < MOTOR_LOW;
+    alarmService = batService < SERVICE_LOW;
+    alarmBow = batBow < BOW_LOW;
+}
+
+//==================================================
+// PUBLICACION MQTT
+//==================================================
+
+void publishData()
+{
+    StaticJsonDocument<1024> doc;
+
+    portENTER_CRITICAL(&mux);
+    doc["lat"] = round(latitude * 100000.0) / 100000.0;
+    doc["lon"] = round(longitude * 100000.0) / 100000.0;
+    doc["gps"] = gpsFix;
+    
+    doc["wind_speed"] = round(windSpeed * 10.0) / 10.0;
+    doc["wind_angle"] = round(windDir);
+    portEXIT_CRITICAL(&mux);
+
+    doc["bm"] = round(batMotor * 10.0) / 10.0;     // bm // tension bateria del motor
+    doc["bs"] = round(batService * 10.0) / 10.0;   // bs // tension bateria de servicio
+    doc["bb"] = round(batBow * 10.0) / 10.0;       // bb // tension bateria de proa
+    doc["am"] = alarmMotor;                        // am // alarma del motor
+    doc["as"] = alarmService;                      // as // alarma de servicio
+    doc["ab"] = alarmBow;                          // ab // alarma de proa
+    doc["o1"] = out1;                              // o1 // salida 1
+    doc["o2"] = out2;                              // o2 // salida 2
+    doc["o3"] = out3;                              // o3 // salida 3
+    doc["o4"] = out4;                              // o4 // salida 4
+    doc["o5"] = out5;                              // o5 // salida 5
+    // doc["wi"] = wifiStatus;                     // wi // estado wifi
+    // doc["mq"] = mqttStatus;                     // mq // estado mqtt
+    doc["mq"] = mqttStatus;
+    doc["bt"] = btStatus;                          // bt // estado bluetooth
+
+    char buffer[1024];
+    serializeJson(doc, buffer);
+    
+    client.publish(topicData, buffer);
+    Serial.print("MQTT TX [");
+    Serial.print(topicData);
+    Serial.print("]: ");
+    Serial.println(buffer);
+}
+
+//==================================================
+// WIFI NO BLOQUEANTE
+//==================================================
+
+void connectWiFi()
+{
+    if(WiFi.status() == WL_CONNECTED)
+    {
+        if(wifiStatus != "OK")
+        {
+            wifiStatus = "OK";
+            Serial.print("WiFi Conectado! IP: ");
+            Serial.println(WiFi.localIP());
+        }
+        return;
+    }
+
+    if(wifiStatus == "CONNECTING")
+    {
+        return;
+    }
+
+    wifiStatus = "CONNECTING";
+    Serial.println("Iniciando conexión WiFi...");
+    WiFi.begin(ssid, password);
+}
+
+//==================================================
+// MQTT
+//==================================================
+
+unsigned long lastMQTTAttempt = 0;
+const unsigned long MQTT_INTERVAL = 5000;
+
+void reconnectMQTT()
+{
+    if(client.connected())
+    {
+        mqttStatus = "OK";
+        return;
+    }
+
+    if(millis() - lastMQTTAttempt < MQTT_INTERVAL)
+        return;
+
+    lastMQTTAttempt = millis();
+    
+    if(WiFi.status() != WL_CONNECTED)
+    {
+        mqttStatus = "FAIL";
+        return;
+    }
+
+    mqttStatus = "CONNECTING";
+    String id = "ESP32Boat-" + String(random(0xffff), HEX);
+
+    if(client.connect(id.c_str(), topicStatus, 1, true, "ONLINE"))
+    {
+        mqttStatus = "OK";
+        client.publish(topicStatus, "ONLINE", true);
+        client.subscribe(topicCmd);
+        Serial.println("MQTT Conectado OK");
+    }
+    else
+    {
+        mqttStatus = "FAIL";
+    }
+}
+
+//==================================================
+// SETUP
+//==================================================
+
+void setup()
+{
+    Serial.begin(115200);
+    delay(1000);
+
+    Serial.println("\n======================");
+    Serial.println(" ESP32 WROOM BOAT SYS ");
+    Serial.println("======================");
+
+    WiFi.mode(WIFI_STA);
+    client.setServer(mqtt_server, mqtt_port);
+    client.setCallback(mqttCallback);
+
+    setupOutputs();
+    setupGPSHardware();
+    setupBluetooth();
+
+    xTaskCreatePinnedToCore(
+        bluetoothTask,
+        "BluetoothTask",
+        4096,
+        NULL,
+        1,
+        NULL,
+        0
+    );
+
+    Serial.println("Sistema iniciado");
+}
+
+//==================================================
+// LOOP PRINCIPAL CORE 1
+//==================================================
+
+void loop()
+{
+    connectWiFi();
+    
+    if(WiFi.status() == WL_CONNECTED)
+    {
+        reconnectMQTT();
+        client.loop();
+    }
+
+    readGPSHardware();
+
+    static unsigned long tData = 0;
+    if(millis() - tData >= 1000)
+    {
+        tData = millis();
+        readBatteries();
+        publishData();
+    }
+
+    if(gpsFix && millis() - lastGPS > 10000)
+    {
+        portENTER_CRITICAL(&mux);
+        gpsFix = false;
+        portEXIT_CRITICAL(&mux);
+    }
+}
