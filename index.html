@@ -1,241 +1,141 @@
 <!DOCTYPE html>
-<html lang="es">
+<html lang="pt">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ESP32 Boat System - Capicua</title>
-    <!-- Librería MQTT moderna compatible con WSS -->
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Painel Capicua</title>
+    <!-- Librería MQTT Original que funcionaba -->
     <script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
+
     <style>
-        body {
-            font-family: Arial, sans-serif;
-            background-color: #121212;
-            color: #e0e0e0;
-            margin: 0;
-            padding: 20px;
-        }
-        h1, h2 {
-            color: #ffffff;
-            border-bottom: 2px solid #333;
-            padding-bottom: 5px;
-        }
-        .container {
-            max-width: 800px;
-            margin: auto;
-        }
-        .card {
-            background-color: #1e1e1e;
-            border-radius: 8px;
-            padding: 15px;
-            margin-bottom: 20px;
-            box-shadow: 0 4px 6px rgba(0,0,0,0.3);
-        }
-        .grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-            gap: 15px;
-        }
-        .metric {
-            background: #2a2a2a;
-            padding: 10px;
-            border-radius: 5px;
-            text-align: center;
-        }
-        .metric span {
-            font-size: 1.5em;
-            font-weight: bold;
-            color: #4CAF50;
-        }
-        .alarm {
-            color: #ff5252 !important;
-        }
-        .control-row {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            padding: 8px 0;
-            border-bottom: 1px solid #333;
-        }
-        /* Toggle Switch */
-        .switch {
-            position: relative;
-            display: inline-block;
-            width: 50px;
-            height: 24px;
-        }
-        .switch input { 
-            opacity: 0;
-            width: 0;
-            height: 0;
-        }
-        .slider {
-            position: absolute;
-            cursor: pointer;
-            top: 0; left: 0; right: 0; bottom: 0;
-            background-color: #ccc;
-            transition: .4s;
-            border-radius: 24px;
-        }
-        .slider:before {
-            position: absolute;
-            content: "";
-            height: 16px;
-            width: 16px;
-            left: 4px;
-            bottom: 4px;
-            background-color: white;
-            transition: .4s;
-            border-radius: 50%;
-        }
-        input:checked + .slider {
-            background-color: #2196F3;
-        }
-        input:checked + .slider:before {
-            transform: translateX(26px);
-        }
-        .status-badge {
-            display: inline-block;
-            padding: 3px 8px;
-            border-radius: 4px;
-            font-size: 0.9em;
-            font-weight: bold;
-        }
-        .status-ok { background-color: #2e7d32; color: white; }
-        .status-off { background-color: #c62828; color: white; }
+        body { margin:0; font-family:Arial,sans-serif; background:#63c7e8; color:#003344; }
+        .header { background:#005b75; color:white; text-align:center; padding:15px; font-size:24px; font-weight:bold; }
+        .connection { display:flex; justify-content:center; gap:15px; margin:12px; flex-wrap:wrap; }
+        .conn { background:white; padding:8px 12px; border-radius:12px; font-weight:bold; }
+        .led { width:12px; height:12px; display:inline-block; border-radius:50%; background:red; margin-right:5px; }
+        .card { background:white; margin:8px; padding:10px; border-radius:14px; text-align:center; box-shadow:0 2px 5px #777; }
+        .title { font-size:13px; color:#006080; font-weight:bold; }
+        .value { font-size:25px; font-weight:bold; color:#008000; margin-top:5px; }
+        .row { display:flex; justify-content:center; gap:8px; flex-wrap:wrap; }
+        .row .card { flex:1; min-width:90px; }
+        .alarm { color:red !important; }
+        .button { background:#006080; color:white; cursor:pointer; }
+        .button.on { background:#FFD700; color:#000; }
+        .button.off { background:#AAAAAA; color:#FFFFFF; }
     </style>
 </head>
+
 <body>
 
-<div class="container">
-    <h1>ESP32 Boat System - Capicua</h1>
-    
-    <!-- Estado General -->
-    <div class="card">
-        <h2>Conectividad</h2>
-        <p>WiFi: <span id="st_wifi" class="status-badge status-off">OFF</span> | 
-           MQTT: <span id="st_mq" class="status-badge status-off">OFF</span> | 
-           Bluetooth: <span id="st_bt" class="status-badge status-off">OFF</span></p>
+    <div class="header">⛵ PANEL CAPICUA</div>
+
+    <div class="connection">
+        <div class="conn"><span id="ledWifi" class="led"></span>WiFi</div>
+        <div class="conn"><span id="ledMQTT" class="led"></span>MQTT</div>
+        <div class="conn"><span id="ledBT" class="led"></span>BT</div>
+        <div class="conn"><span id="ledGPS" class="led"></span>GPS FIX</div>
     </div>
 
-    <!-- Navegación / GPS -->
     <div class="card">
-        <h2>Navegación</h2>
-        <div class="grid">
-            <div class="metric">Latitud<br><span id="val_lat">0.0</span></div>
-            <div class="metric">Longitud<br><span id="val_lon">0.0</span></div>
-            <div class="metric">GPS Fix<br><span id="val_gps">NO</span></div>
-            <div class="metric">Vel. Viento<br><span id="val_ws">0.0</span> kts</div>
-            <div class="metric">Ángulo Viento<br><span id="val_wa">0</span>°</div>
+        <div class="title">GPS</div>
+        <div class="row">
+            <div class="card"><div class="title">LAT</div><div class="value" id="lat">--</div></div>
+            <div class="card"><div class="title">LON</div><div class="value" id="lon">--</div></div>
         </div>
     </div>
 
-    <!-- Baterías -->
-    <div class="card">
-        <h2>Baterías</h2>
-        <div class="grid">
-            <div class="metric">Motor (bm)<br><span id="val_bm">0.0</span> V</div>
-            <div class="metric">Servicio (bs)<br><span id="val_bs">0.0</span> V</div>
-            <div class="metric">Proa (bb)<br><span id="val_bb">0.0</span> V</div>
-        </div>
+    <div class="row">
+        <div class="card"><div class="title">VIENTO</div><div class="value"><span id="wind">--</span> kt</div></div>
+        <div class="card"><div class="title">ANGULO</div><div class="value"><span id="angle">--</span>°</div></div>
+        <div class="card"><div class="title">PROFUNDIDAD</div><div class="value"><span id="depth">--</span> m</div></div>
     </div>
 
-    <!-- Salidas y Controles -->
-    <div class="card">
-        <h2>Control de Salidas</h2>
-        
-        <div class="control-row">
-            <span>Salida 1 (o1)</span>
-            <label class="switch"><input type="checkbox" id="btn_o1" onclick="toggleControl('o1', this.checked)"><span class="slider"></span></label>
-        </div>
-        <div class="control-row">
-            <span>Salida 2 (o2)</span>
-            <label class="switch"><input type="checkbox" id="btn_o2" onclick="toggleControl('o2', this.checked)"><span class="slider"></span></label>
-        </div>
-        <div class="control-row">
-            <span>Salida 3 (o3)</span>
-            <label class="switch"><input type="checkbox" id="btn_o3" onclick="toggleControl('o3', this.checked)"><span class="slider"></span></label>
-        </div>
-        <div class="control-row">
-            <span>GPS Control / Chave GPS (o4)</span>
-            <label class="switch"><input type="checkbox" id="btn_o4" onclick="toggleControl('o4', this.checked)"><span class="slider"></span></label>
-        </div>
-        <div class="control-row">
-            <span>Deshumidificador (o5)</span>
-            <label class="switch"><input type="checkbox" id="btn_o5" onclick="toggleControl('o5', this.checked)"><span class="slider"></span></label>
-        </div>
+    <div class="row">
+        <div class="card"><div class="title">MOTOR</div><div class="value" id="bat_m">--</div></div>
+        <div class="card"><div class="title">SERV</div><div class="value" id="bat_s">--</div></div>
+        <div class="card"><div class="title">PROA</div><div class="value" id="bat_b">--</div></div>
     </div>
-</div>
 
-<script>
-    if (typeof mqtt === 'undefined') {
-        alert("Error: La librería MQTT no cargó correctamente.");
-    } else {
-        // Conexión segura por WebSockets (evita bloqueos en navegadores modernos)
-        const client = mqtt.connect("wss://broker.hivemq.com:8884/mqtt");
+    <div class="row">
+        <div class="card button off" id="out1"><div class="title">GPS</div><div class="value">OFF</div></div>
+        <div class="card button off" id="out2"><div class="title">Instrumentos</div><div class="value">OFF</div></div>
+        <div class="card button off" id="out3"><div class="title">Luz de Top</div><div class="value">OFF</div></div>
+    </div>
 
-        client.on("connect", () => {
-            console.log("Conectado al broker MQTT");
-            client.subscribe("boat2/data");
-        });
+    <div class="row">
+        <div class="card button off" id="out4"><div class="title">Desumidificador</div><div class="value">OFF</div></div>
+        <div class="card button off" id="out5"><div class="title">Camara</div><div class="value">OFF</div></div>
+    </div>
 
-        client.on("message", (topic, msg) => {
-            let d;
-            try { 
-                d = JSON.parse(msg.toString()); 
-            } catch(e) { 
-                console.error("Error al parsear JSON:", e);
-                return; 
+    <script>
+        if (typeof mqtt === 'undefined') {
+            alert("Error: La librería MQTT no cargó. Revisa tu conexión.");
+        } else {
+            const client = mqtt.connect("wss://broker.hivemq.com:8884/mqtt");
+
+            client.on("connect", () => {
+                console.log("MQTT conectado");
+                client.subscribe("boat2/data");
+            });
+
+            client.on("message", (topic, msg) => {
+                let d;
+                try { d = JSON.parse(msg.toString()); } catch(e) { return; }
+                
+                led("ledWifi", true);
+                led("ledMQTT", d.mq == "OK");
+                led("ledBT", d.bt == "OK");
+                led("ledGPS", d.gps);
+
+                document.getElementById("lat").innerHTML = d.lat ?? "--";
+                document.getElementById("lon").innerHTML = d.lon ?? "--";
+                document.getElementById("wind").innerHTML = number(d.wind_speed);
+                document.getElementById("angle").innerHTML = Math.round(d.wind_angle ?? 0);
+                document.getElementById("depth").innerHTML = number(d.depth);
+
+                updateBattery("bat_m", d.bm, d.am);
+                updateBattery("bat_s", d.bs, d.as);
+                updateBattery("bat_b", d.bb, d.ab);
+
+                updateOutput("out1", d.o1);
+                updateOutput("out2", d.o2);
+                updateOutput("out3", d.o3);
+                updateOutput("out4", d.o4);
+                updateOutput("out5", d.o5);
+            });
+
+            function led(id, state) { 
+                let e = document.getElementById(id); 
+                if(e) e.style.background = state ? "green" : "red"; 
             }
-            
-            // Estados de Conexión y LEDs
-            updateBadge("st_wifi", true, "OK", "OFF"); // Asumido OK al recibir datos del broker
-            updateBadge("st_mq", d.mq === "OK", d.mq || "OFF", "OFF");
-            updateBadge("st_bt", d.bt === "OK", d.bt || "OFF", "OFF");
 
-            // Navegación y Viento
-            if(d.lat !== undefined) document.getElementById("val_lat").innerText = d.lat;
-            if(d.lon !== undefined) document.getElementById("val_lon").innerText = d.lon;
-            if(d.gps !== undefined) document.getElementById("val_gps").innerText = d.gps ? "SÍ" : "NO";
-            if(d.wind_speed !== undefined) document.getElementById("val_ws").innerText = Number(d.wind_speed).toFixed(1);
-            if(d.wind_angle !== undefined) document.getElementById("val_wa").innerText = Math.round(d.wind_angle);
+            function number(v) { return (v == null) ? "--" : Number(v).toFixed(1); }
 
-            // Baterías y Alarmas
-            updateBattery("val_bm", d.bm, d.am);
-            updateBattery("val_bs", d.bs, d.as);
-            updateBattery("val_bb", d.bb, d.ab);
-
-            // Estados de Salidas (Checkboxes)
-            if(d.o1 !== undefined) document.getElementById("btn_o1").checked = d.o1;
-            if(d.o2 !== undefined) document.getElementById("btn_o2").checked = d.o2;
-            if(d.o3 !== undefined) document.getElementById("btn_o3").checked = d.o3;
-            if(d.o4 !== undefined) document.getElementById("btn_o4").checked = d.o4;
-            if(d.o5 !== undefined) document.getElementById("btn_o5").checked = d.o5;
-        });
-
-        function updateBadge(id, condition, textOk, textOff) {
-            let elem = document.getElementById(id);
-            if(elem) {
-                elem.innerText = condition ? textOk : textOff;
-                elem.className = "status-badge " + (condition ? "status-ok" : "status-off");
-            }
-        }
-
-        function updateBattery(id, val, alarm) {
-            let elem = document.getElementById(id);
-            if(elem) {
-                elem.innerText = (val != null) ? val : "0.0";
-                if(alarm) {
-                    elem.classList.add("alarm");
-                } else {
-                    elem.classList.remove("alarm");
+            function updateBattery(id, val, alarm) {
+                let e = document.getElementById(id);
+                if(e) {
+                    e.innerHTML = (val != null) ? val + " V" : "-- V";
+                    e.className = alarm ? "value alarm" : "value";
                 }
             }
-        }
 
-        function toggleControl(cmdName, state) {
-            client.publish("boat2/cmd", JSON.stringify({ "cmd": cmdName, "value": state }));
+            function updateOutput(id, state) {
+                let e = document.getElementById(id);
+                if(!e) return;
+                e.className = state ? "card button on" : "card button off";
+                e.querySelector(".value").innerHTML = state ? "ON" : "OFF";
+            }
+
+            function command(cmd, state) {
+                client.publish("boat2/cmd", JSON.stringify({ "cmd": cmd, "value": state }));
+            }
+
+            document.getElementById("out1").onclick = () => command("o1", !document.getElementById("out1").classList.contains("on"));
+            document.getElementById("out2").onclick = () => command("o2", !document.getElementById("out2").classList.contains("on"));
+            document.getElementById("out3").onclick = () => command("o3", !document.getElementById("out3").classList.contains("on"));
+            document.getElementById("out4").onclick = () => command("o4", !document.getElementById("out4").classList.contains("on"));
+            document.getElementById("out5").onclick = () => command("o5", !document.getElementById("out5").classList.contains("on"));
         }
-    }
-</script>
+    </script>
 </body>
 </html>
