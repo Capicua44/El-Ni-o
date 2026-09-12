@@ -1,267 +1,141 @@
 <!DOCTYPE html>
-<html lang="es">
+<html lang="pt">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ESP32 Boat System - Capicua</title>
-    <!-- MQTT Client Library (Versión Estable WSS) -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/paho-mqtt/1.0.1/mqttws31.min.js"></script>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Painel Capicua</title>
+    <!-- Librería MQTT Original que funcionaba -->
+    <script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
+
     <style>
-        body {
-            font-family: Arial, sans-serif;
-            background-color: #121212;
-            color: #e0e0e0;
-            margin: 0;
-            padding: 20px;
-        }
-        h1, h2 {
-            color: #ffffff;
-            border-bottom: 2px solid #333;
-            padding-bottom: 5px;
-        }
-        .container {
-            max-width: 800px;
-            margin: auto;
-        }
-        .card {
-            background-color: #1e1e1e;
-            border-radius: 8px;
-            padding: 15px;
-            margin-bottom: 20px;
-            box-shadow: 0 4px 6px rgba(0,0,0,0.3);
-        }
-        .grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-            gap: 15px;
-        }
-        .metric {
-            background: #2a2a2a;
-            padding: 10px;
-            border-radius: 5px;
-            text-align: center;
-        }
-        .metric span {
-            font-size: 1.5em;
-            font-weight: bold;
-            color: #4CAF50;
-        }
-        .alarm {
-            color: #ff5252 !important;
-        }
-        .control-row {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            padding: 10px 0;
-            border-bottom: 1px solid #333;
-        }
-        /* Toggle Switch */
-        .switch {
-            position: relative;
-            display: inline-block;
-            width: 50px;
-            height: 24px;
-        }
-        .switch input { 
-            opacity: 0;
-            width: 0;
-            height: 0;
-        }
-        .slider {
-            position: absolute;
-            cursor: pointer;
-            top: 0; left: 0; right: 0; bottom: 0;
-            background-color: #ccc;
-            transition: .4s;
-            border-radius: 24px;
-        }
-        .slider:before {
-            position: absolute;
-            content: "";
-            height: 16px;
-            width: 16px;
-            left: 4px;
-            bottom: 4px;
-            background-color: white;
-            transition: .4s;
-            border-radius: 50%;
-        }
-        input:checked + .slider {
-            background-color: #2196F3;
-        }
-        input:checked + .slider:before {
-            transform: translateX(26px);
-        }
-        .status-badge {
-            display: inline-block;
-            padding: 3px 8px;
-            border-radius: 4px;
-            font-size: 0.9em;
-            font-weight: bold;
-        }
-        .status-ok { background-color: #2e7d32; color: white; }
-        .status-off { background-color: #c62828; color: white; }
+        body { margin:0; font-family:Arial,sans-serif; background:#63c7e8; color:#003344; }
+        .header { background:#005b75; color:white; text-align:center; padding:15px; font-size:24px; font-weight:bold; }
+        .connection { display:flex; justify-content:center; gap:15px; margin:12px; flex-wrap:wrap; }
+        .conn { background:white; padding:8px 12px; border-radius:12px; font-weight:bold; }
+        .led { width:12px; height:12px; display:inline-block; border-radius:50%; background:red; margin-right:5px; }
+        .card { background:white; margin:8px; padding:10px; border-radius:14px; text-align:center; box-shadow:0 2px 5px #777; }
+        .title { font-size:13px; color:#006080; font-weight:bold; }
+        .value { font-size:25px; font-weight:bold; color:#008000; margin-top:5px; }
+        .row { display:flex; justify-content:center; gap:8px; flex-wrap:wrap; }
+        .row .card { flex:1; min-width:90px; }
+        .alarm { color:red !important; }
+        .button { background:#006080; color:white; cursor:pointer; }
+        .button.on { background:#FFD700; color:#000; }
+        .button.off { background:#AAAAAA; color:#FFFFFF; }
     </style>
 </head>
+
 <body>
 
-<div class="container">
-    <h1>ESP32 Boat System - Capicua</h1>
-    
-    <!-- Conectividad -->
-    <div class="card">
-        <h2>Conectividad</h2>
-        <p>
-            MQTT: <span id="st_mq" class="status-badge status-off">OFF</span> | 
-            Bluetooth: <span id="st_bt" class="status-badge status-off">OFF</span> | 
-            GPS Fix: <span id="st_gps" class="status-badge status-off">NO</span>
-        </p>
+    <div class="header">⛵ PANEL CAPICUA</div>
+
+    <div class="connection">
+        <div class="conn"><span id="ledWifi" class="led"></span>WiFi</div>
+        <div class="conn"><span id="ledMQTT" class="led"></span>MQTT</div>
+        <div class="conn"><span id="ledBT" class="led"></span>BT</div>
+        <div class="conn"><span id="ledGPS" class="led"></span>GPS FIX</div>
     </div>
 
-    <!-- Navegación / GPS -->
     <div class="card">
-        <h2>Navegación</h2>
-        <div class="grid">
-            <div class="metric">Latitud<br><span id="val_lat">0.0</span></div>
-            <div class="metric">Longitud<br><span id="val_lon">0.0</span></div>
-            <div class="metric">Vel. Viento<br><span id="val_ws">0.0</span> kts</div>
-            <div class="metric">Ángulo Viento<br><span id="val_wa">0</span>°</div>
-            <div class="metric">Profundidad<br><span id="val_depth">0.0</span> m</div>
+        <div class="title">GPS</div>
+        <div class="row">
+            <div class="card"><div class="title">LAT</div><div class="value" id="lat">--</div></div>
+            <div class="card"><div class="title">LON</div><div class="value" id="lon">--</div></div>
         </div>
     </div>
 
-    <!-- Baterías -->
-    <div class="card">
-        <h2>Baterías</h2>
-        <div class="grid">
-            <div class="metric">Motor (bm)<br><span id="val_bm">0.0</span> V</div>
-            <div class="metric">Servicio (bs)<br><span id="val_bs">0.0</span> V</div>
-            <div class="metric">Proa (bb)<br><span id="val_bb">0.0</span> V</div>
-        </div>
+    <div class="row">
+        <div class="card"><div class="title">VIENTO</div><div class="value"><span id="wind">--</span> kt</div></div>
+        <div class="card"><div class="title">ANGULO</div><div class="value"><span id="angle">--</span>°</div></div>
+        <div class="card"><div class="title">PROFUNDIDAD</div><div class="value"><span id="depth">--</span> m</div></div>
     </div>
 
-    <!-- Salidas y Controles -->
-    <div class="card">
-        <h2>Control de Salidas</h2>
-        
-        <div class="control-row">
-            <span>GPS</span>
-            <label class="switch"><input type="checkbox" id="btn_o1" onclick="toggleControl('o1', this.checked)"><span class="slider"></span></label>
-        </div>
-        <div class="control-row">
-            <span>Instrumentos</span>
-            <label class="switch"><input type="checkbox" id="btn_o2" onclick="toggleControl('o2', this.checked)"><span class="slider"></span></label>
-        </div>
-        <div class="control-row">
-            <span>Luz de Top</span>
-            <label class="switch"><input type="checkbox" id="btn_o3" onclick="toggleControl('o3', this.checked)"><span class="slider"></span></label>
-        </div>
-        <div class="control-row">
-            <span>Deshumidificador</span>
-            <label class="switch"><input type="checkbox" id="btn_o4" onclick="toggleControl('o4', this.checked)"><span class="slider"></span></label>
-        </div>
-        <div class="control-row">
-            <span>Camara</span>
-            <label class="switch"><input type="checkbox" id="btn_o5" onclick="toggleControl('o5', this.checked)"><span class="slider"></span></label>
-        </div>
+    <div class="row">
+        <div class="card"><div class="title">MOTOR</div><div class="value" id="bat_m">--</div></div>
+        <div class="card"><div class="title">SERV</div><div class="value" id="bat_s">--</div></div>
+        <div class="card"><div class="title">PROA</div><div class="value" id="bat_b">--</div></div>
     </div>
-</div>
 
-<script>
-    const mqttHost = "broker.hivemq.com"; 
-    const mqttPort = 8000; 
-    const clientId = "WebClient_" + Math.random().toString(16).substr(2, 8);
-    
-    const client = new Paho.MQTT.Client(mqttHost, Number(mqttPort), clientId);
+    <div class="row">
+        <div class="card button off" id="out1"><div class="title">GPS</div><div class="value">OFF</div></div>
+        <div class="card button off" id="out2"><div class="title">Instrumentos</div><div class="value">OFF</div></div>
+        <div class="card button off" id="out3"><div class="title">Luz de Top</div><div class="value">OFF</div></div>
+    </div>
 
-    client.onConnectionLost = onConnectionLost;
-    client.onMessageArrived = onMessageArrived;
+    <div class="row">
+        <div class="card button off" id="out4"><div class="title">Desumidificador</div><div class="value">OFF</div></div>
+        <div class="card button off" id="out5"><div class="title">Camara</div><div class="value">OFF</div></div>
+    </div>
 
-    client.connect({
-        onSuccess: onConnect,
-        useSSL: false
-    });
+    <script>
+        if (typeof mqtt === 'undefined') {
+            alert("Error: La librería MQTT no cargó. Revisa tu conexión.");
+        } else {
+            const client = mqtt.connect("wss://broker.hivemq.com:8884/mqtt");
 
-    function onConnect() {
-        console.log("Conectado al broker MQTT");
-        client.subscribe("boat2/data");
-    }
+            client.on("connect", () => {
+                console.log("MQTT conectado");
+                client.subscribe("boat2/data");
+            });
 
-    function onConnectionLost(responseObject) {
-        if (responseObject.errorCode !== 0) {
-            console.log("Conexión perdida: " + responseObject.errorMessage);
-        }
-    }
+            client.on("message", (topic, msg) => {
+                let d;
+                try { d = JSON.parse(msg.toString()); } catch(e) { return; }
+                
+                led("ledWifi", true);
+                led("ledMQTT", d.mq == "OK");
+                led("ledBT", d.bt == "OK");
+                led("ledGPS", d.gps);
 
-    function onMessageArrived(message) {
-        if (message.destinationName === "boat2/data") {
-            try {
-                let data = JSON.parse(message.payloadString);
+                document.getElementById("lat").innerHTML = d.lat ?? "--";
+                document.getElementById("lon").innerHTML = d.lon ?? "--";
+                document.getElementById("wind").innerHTML = number(d.wind_speed);
+                document.getElementById("angle").innerHTML = Math.round(d.wind_angle ?? 0);
+                document.getElementById("depth").innerHTML = number(d.depth);
 
-                // Navegación
-                if(data.lat !== undefined) document.getElementById("val_lat").innerText = data.lat;
-                if(data.lon !== undefined) document.getElementById("val_lon").innerText = data.lon;
-                if(data.wind_speed !== undefined) document.getElementById("val_ws").innerText = data.wind_speed;
-                if(data.wind_angle !== undefined) document.getElementById("val_wa").innerText = Math.round(data.wind_angle);
-                if(data.depth !== undefined) document.getElementById("val_depth").innerText = data.depth;
+                updateBattery("bat_m", d.bm, d.am);
+                updateBattery("bat_s", d.bs, d.as);
+                updateBattery("bat_b", d.bb, d.ab);
 
-                // GPS Fix Status Badge
-                if(data.gps !== undefined) {
-                    let gpsElem = document.getElementById("st_gps");
-                    gpsElem.innerText = data.gps ? "SÍ" : "NO";
-                    gpsElem.className = "status-badge " + (data.gps ? "status-ok" : "status-off");
-                }
+                updateOutput("out1", d.o1);
+                updateOutput("out2", d.o2);
+                updateOutput("out3", d.o3);
+                updateOutput("out4", d.o4);
+                updateOutput("out5", d.o5);
+            });
 
-                // Baterías y Alarmas
-                if(data.bm !== undefined) {
-                    let elem = document.getElementById("val_bm");
-                    elem.innerText = data.bm;
-                    if(data.am) elem.classList.add("alarm"); else elem.classList.remove("alarm");
-                }
-                if(data.bs !== undefined) {
-                    let elem = document.getElementById("val_bs");
-                    elem.innerText = data.bs;
-                    if(data.as) elem.classList.add("alarm"); else elem.classList.remove("alarm");
-                }
-                if(data.bb !== undefined) {
-                    let elem = document.getElementById("val_bb");
-                    elem.innerText = data.bb;
-                    if(data.ab) elem.classList.add("alarm"); else elem.classList.remove("alarm");
-                }
-
-                // Estados de Salidas
-                if(data.o1 !== undefined) document.getElementById("btn_o1").checked = data.o1;
-                if(data.o2 !== undefined) document.getElementById("btn_o2").checked = data.o2;
-                if(data.o3 !== undefined) document.getElementById("btn_o3").checked = data.o3;
-                if(data.o4 !== undefined) document.getElementById("btn_o4").checked = data.o4;
-                if(data.o5 !== undefined) document.getElementById("btn_o5").checked = data.o5;
-
-                // Estados de Conexión
-                if(data.mq !== undefined) {
-                    let mqElem = document.getElementById("st_mq");
-                    mqElem.innerText = data.mq;
-                    mqElem.className = "status-badge " + (data.mq === "OK" ? "status-ok" : "status-off");
-                }
-                if(data.bt !== undefined) {
-                    let btElem = document.getElementById("st_bt");
-                    btElem.innerText = data.bt;
-                    btElem.className = "status-badge " + (data.bt === "OK" ? "status-ok" : "status-off");
-                }
-
-            } catch (e) {
-                console.error("Error al parsear JSON:", e);
+            function led(id, state) { 
+                let e = document.getElementById(id); 
+                if(e) e.style.background = state ? "green" : "red"; 
             }
+
+            function number(v) { return (v == null) ? "--" : Number(v).toFixed(1); }
+
+            function updateBattery(id, val, alarm) {
+                let e = document.getElementById(id);
+                if(e) {
+                    e.innerHTML = (val != null) ? val + " V" : "-- V";
+                    e.className = alarm ? "value alarm" : "value";
+                }
+            }
+
+            function updateOutput(id, state) {
+                let e = document.getElementById(id);
+                if(!e) return;
+                e.className = state ? "card button on" : "card button off";
+                e.querySelector(".value").innerHTML = state ? "ON" : "OFF";
+            }
+
+            function command(cmd, state) {
+                client.publish("boat2/cmd", JSON.stringify({ "cmd": cmd, "value": state }));
+            }
+
+            document.getElementById("out1").onclick = () => command("o1", !document.getElementById("out1").classList.contains("on"));
+            document.getElementById("out2").onclick = () => command("o2", !document.getElementById("out2").classList.contains("on"));
+            document.getElementById("out3").onclick = () => command("o3", !document.getElementById("out3").classList.contains("on"));
+            document.getElementById("out4").onclick = () => command("o4", !document.getElementById("out4").classList.contains("on"));
+            document.getElementById("out5").onclick = () => command("o5", !document.getElementById("out5").classList.contains("on"));
         }
-    }
-
-    function toggleControl(cmdName, state) {
-        let payload = JSON.stringify({ cmd: cmdName, value: state });
-        let message = new Paho.MQTT.Message(payload);
-        message.destinationName = "boat2/cmd";
-        client.send(message);
-    }
-</script>
-
+    </script>
 </body>
 </html>
