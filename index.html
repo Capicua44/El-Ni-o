@@ -83,24 +83,24 @@
                 let d;
                 try { d = JSON.parse(msg.toString()); } catch(e) { return; }
                 
-                // LEDs (Adaptados al ESP: wifiStatus e mqttStatus locales se manejan vía string/estado, bt viene en d.bt)
-                led("ledWifi", true); // Si llega mensaje por MQTT, hay conectividad general
+                // LEDs (Adaptados a las variables reales del ESP: mq, bt, y wifi asumido OK por recepción MQTT)
+                led("ledWifi", true);
                 led("ledMQTT", d.mq == "OK");
                 led("ledBT", d.bt == "OK");
 
-                // Datos de Navegación y Viento
+                // Datos de navegación y viento
                 document.getElementById("lat").innerHTML = d.lat ?? "--";
                 document.getElementById("lon").innerHTML = d.lon ?? "--";
                 document.getElementById("gps").innerHTML = d.gps ? "GPS OK" : "GPS SIN SEÑAL";
                 document.getElementById("wind").innerHTML = number(d.wind_speed);
                 document.getElementById("angle").innerHTML = Math.round(d.wind_angle ?? 0);
 
-                // Baterías y Alarmas (Variables ajustadas a bm, bs, bb, am, as, ab)
+                // Baterías y alarmas (bm, bs, bb / am, as, ab)
                 updateBattery("bat_m", d.bm, d.am);
                 updateBattery("bat_s", d.bs, d.as);
                 updateBattery("bat_b", d.bb, d.ab);
 
-                // Botones / Salidas (out1 a out5)
+                // Salidas / Botones (o1, o2, o3, o4, o5)
                 updateOutput("out1", d.o1);
                 updateOutput("out2", d.o2);
                 updateOutput("out3", d.o3);
@@ -134,7 +134,7 @@
                 client.publish("boat2/cmd", JSON.stringify({ "cmd": cmd, "value": state }));
             }
 
-            // Enlazando los comandos con las nuevas claves JSON del ESP (o1, o2, o3, o4, o5)
+            // Enlazando los comandos a los tópicos y claves correctas (o1, o2, o3, o4, o5)
             document.getElementById("out1").onclick = () => command("o1", !document.getElementById("out1").classList.contains("on"));
             document.getElementById("out2").onclick = () => command("o2", !document.getElementById("out2").classList.contains("on"));
             document.getElementById("out3").onclick = () => command("o3", !document.getElementById("out3").classList.contains("on"));
