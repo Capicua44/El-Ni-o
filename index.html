@@ -1,562 +1,289 @@
 <!DOCTYPE html>
-
 <html lang="pt">
-
 <head>
-
     <meta charset="UTF-8">
-
     <meta name="viewport" content="width=device-width, initial-scale=1">
-
     <title>Painel Capicua</title>
-
     <!-- Librería MQTT que sabemos que funciona perfectamente -->
-
     <script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
 
-
-
     <style>
-
         body { 
-
             margin: 0; 
-
             font-family: Arial, sans-serif; 
-
             background: #121212; 
-
             color: #e0e0e0; 
-
         }
-
         .header { 
-
             background: #1e1e1e; 
-
             color: #ffffff; 
-
             text-align: center; 
-
             padding: 15px; 
-
             font-size: 24px; 
-
             font-weight: bold; 
-
             border-bottom: 2px solid #333;
-
         }
-
         .connection { 
-
             display: flex; 
-
             justify-content: center; 
-
             gap: 15px; 
-
             margin: 12px; 
-
             flex-wrap: wrap; 
-
         }
-
         .conn { 
-
             background: #1e1e1e; 
-
             color: #e0e0e0;
-
             padding: 8px 12px; 
-
             border-radius: 12px; 
-
             font-weight: bold; 
-
             box-shadow: 0 2px 5px rgba(0,0,0,0.3);
-
         }
-
         .led { 
-
             width: 12px; 
-
             height: 12px; 
-
             display: inline-block; 
-
             border-radius: 50%; 
-
             background: red; 
-
             margin-right: 5px; 
-
         }
-
         .card { 
-
             background: #1e1e1e; 
-
             color: #e0e0e0;
-
             margin: 8px; 
-
             padding: 8px; 
-
             border-radius: 14px; 
-
             text-align: center; 
-
             box-shadow: 0 2px 5px rgba(0,0,0,0.3); 
-
         }
-
         .title { 
-
             font-size: 11px; 
-
             color: #4CAF50; 
-
             font-weight: bold; 
-
         }
-
         .value { 
-
             font-size: 18px; 
-
             font-weight: bold; 
-
             color: #ffffff; 
-
             margin-top: 4px; 
-
         }
-
         .row { 
-
             display: flex; 
-
             justify-content: center; 
-
             gap: 6px; 
-
             flex-wrap: wrap; 
-
         }
-
         .row .card { 
-
             flex: 1; 
-
             min-width: 70px; 
-
         }
-
         .alarm { 
-
             color: #ff5252 !important; 
-
         }
-
         .value-green {
-
             color: #4CAF50;
-
         }
-
-
 
         /* Animación para parpadear el texto de emergencia */
-
         @keyframes blink {
-
             0% { opacity: 1; }
-
             50% { opacity: 0.2; }
-
             100% { opacity: 1; }
-
         }
-
         .emergency-blink {
-
             animation: blink 0.8s infinite;
-
             color: #ff5252 !important;
-
         }
-
-
 
         /* Estilo para las filas de control deslizante (Toggle Switch) */
-
         .control-card {
-
             background: #1e1e1e;
-
             margin: 8px;
-
             padding: 12px 15px;
-
             border-radius: 14px;
-
             box-shadow: 0 2px 5px rgba(0,0,0,0.3);
-
             display: flex;
-
             justify-content: space-between;
-
             align-items: center;
-
         }
-
         .control-title {
-
             font-size: 15px;
-
             color: #ffffff;
-
             font-weight: bold;
-
         }
-
-
 
         /* Toggle Switch CSS */
-
         .switch {
-
             position: relative;
-
             display: inline-block;
-
             width: 50px;
-
             height: 24px;
-
         }
-
         .switch input { 
-
             opacity: 0;
-
             width: 0;
-
             height: 0;
-
         }
-
         .slider {
-
             position: absolute;
-
             cursor: pointer;
-
             top: 0; left: 0; right: 0; bottom: 0;
-
             background-color: #555;
-
             transition: .4s;
-
             border-radius: 24px;
-
         }
-
         .slider:before {
-
             position: absolute;
-
             content: "";
-
             height: 16px;
-
             width: 16px;
-
             left: 4px;
-
             bottom: 4px;
-
             background-color: white;
-
             transition: .4s;
-
             border-radius: 50%;
-
         }
-
         input:checked + .slider {
-
             background-color: #2196F3;
-
         }
-
         input:checked + .slider:before {
-
             transform: translateX(26px);
-
         }
-
     </style>
-
 </head>
-
-
 
 <body>
 
-
-
     <div class="header">⛵ PANEL CAPICUA</div>
 
-
-
     <div class="connection">
-
         <div class="conn"><span id="ledWifi" class="led"></span>WiFi</div>
-
         <div class="conn"><span id="ledMQTT" class="led"></span>MQTT</div>
-
         <div class="conn"><span id="ledBT" class="led"></span>BT</div>
-
         <div class="conn"><span id="ledGPS" class="led"></span>GPS FIX</div>
-
     </div>
-
-
 
     <div class="card">
-
         <div class="title">GPS</div>
-
         <div class="row">
-
             <div class="card"><div class="title">LAT</div><div class="value" id="lat">--</div></div>
-
             <div class="card"><div class="title">LON</div><div class="value" id="lon">--</div></div>
-
         </div>
-
     </div>
 
-
-
     <div class="row">
-
         <div class="card"><div class="title">VIENTO</div><div class="value"><span id="wind">--</span> kt</div></div>
-
         <div class="card"><div class="title">ANGULO</div><div class="value"><span id="angle">--</span>°</div></div>
-
         <div class="card"><div class="title">PROFUNDIDAD</div><div class="value"><span id="depth">--</span> m</div></div>
-
         <div class="card"><div class="title">ALARMA DE AGUA</div><div class="value value-green" id="water_alarm">OK</div></div>
-
     </div>
-
-
 
     <div class="row">
-
         <div class="card"><div class="title">MOTOR</div><div class="value" id="bat_m">--</div></div>
-
         <div class="card"><div class="title">SERV</div><div class="value" id="bat_s">--</div></div>
-
         <div class="card"><div class="title">PROA</div><div class="value" id="bat_b">--</div></div>
-
     </div>
-
-
 
     <!-- Controles con interruptores deslizantes y nombres asignados -->
-
     <div class="control-card">
-
         <span class="control-title">GPS</span>
-
         <label class="switch"><input type="checkbox" id="btn_o1" onclick="toggleControl('o1', this.checked)"><span class="slider"></span></label>
-
     </div>
-
     <div class="control-card">
-
         <span class="control-title">Instrumentos</span>
-
         <label class="switch"><input type="checkbox" id="btn_o2" onclick="toggleControl('o2', this.checked)"><span class="slider"></span></label>
-
     </div>
-
     <div class="control-card">
-
         <span class="control-title">Luz de Top</span>
-
         <label class="switch"><input type="checkbox" id="btn_o3" onclick="toggleControl('o3', this.checked)"><span class="slider"></span></label>
-
     </div>
-
     <div class="control-card">
-
         <span class="control-title">Desumidificador</span>
-
         <label class="switch"><input type="checkbox" id="btn_o4" onclick="toggleControl('o4', this.checked)"><span class="slider"></span></label>
-
     </div>
-
     <div class="control-card">
-
         <span class="control-title">Camara</span>
-
         <label class="switch"><input type="checkbox" id="btn_o5" onclick="toggleControl('o5', this.checked)"><span class="slider"></span></label>
-
     </div>
-
-
 
     <script>
+        // Umbrales locales configurados en el navegador para cada batería
+        const MOTOR_LOW = 12.0;
+        const SERVICE_LOW = 11.8;
+        const BOW_LOW = 12.0;
 
         if (typeof mqtt === 'undefined') {
-
             alert("Error: La librería MQTT no cargó. Revisa tu conexión.");
-
         } else {
-
             const client = mqtt.connect("wss://broker.hivemq.com:8884/mqtt");
 
-
-
             client.on("connect", () => {
-
                 console.log("MQTT conectado");
-
                 client.subscribe("boat2/data");
-
             });
-
-
 
             client.on("message", (topic, msg) => {
-
                 let d;
-
                 try { d = JSON.parse(msg.toString()); } catch(e) { return; }
-
                 
-
                 led("ledWifi", true);
-
                 led("ledMQTT", d.mq == "OK");
-
                 led("ledBT", d.bt == "OK");
-
                 led("ledGPS", d.gps);
 
-
-
                 document.getElementById("lat").innerHTML = d.lat ?? "--";
-
                 document.getElementById("lon").innerHTML = d.lon ?? "--";
-
                 document.getElementById("wind").innerHTML = number(d.wind_speed);
-
                 document.getElementById("angle").innerHTML = Math.round(d.wind_angle ?? 0);
-
                 document.getElementById("depth").innerHTML = number(d.Pr);
 
-
-
                 // Control de Alarma de Agua: 
-
-                // El ESP32 envía 'Ag' (true si hay agua/HIGH, false si está OK/LOW).
-
-                // Como pediste que al estar en LOW (false) arme la emergencia, invertimos la lógica: hasWater = !d.Ag
-
                 let waterElem = document.getElementById("water_alarm");
-
                 let waterSignal = d.Ag !== undefined ? d.Ag : false;
-
-                let hasWater = !waterSignal; // Si Ag es false (LOW), hay alarma de agua en el porao
-
+                let hasWater = !waterSignal; 
                 
-
                 if (hasWater) {
-
                     waterElem.innerHTML = "Emergencia";
-
                     waterElem.className = "value emergency-blink";
-
                 } else {
-
                     waterElem.innerHTML = "OK";
-
                     waterElem.className = "value value-green";
-
                 }
 
+                // Cálculo local de alarmas de batería evaluado en el navegador
+                let alarmMotor = d.bm !== undefined && Number(d.bm) < MOTOR_LOW;
+                let alarmService = d.bs !== undefined && Number(d.bs) < SERVICE_LOW;
+                let alarmBow = d.bb !== undefined && Number(d.bb) < BOW_LOW;
 
-
-                updateBattery("bat_m", d.bm, d.am);
-
-                updateBattery("bat_s", d.bs, d.as);
-
-                updateBattery("bat_b", d.bb, d.ab);
-
-
+                updateBattery("bat_m", d.bm, alarmMotor);
+                updateBattery("bat_s", d.bs, alarmService);
+                updateBattery("bat_b", d.bb, alarmBow);
 
                 if(d.o1 !== undefined) document.getElementById("btn_o1").checked = d.o1;
-
                 if(d.o2 !== undefined) document.getElementById("btn_o2").checked = d.o2;
-
                 if(d.o3 !== undefined) document.getElementById("btn_o3").checked = d.o3;
-
                 if(d.o4 !== undefined) document.getElementById("btn_o4").checked = d.o4;
-
                 if(d.o5 !== undefined) document.getElementById("btn_o5").checked = d.o5;
-
             });
 
-
-
             function led(id, state) { 
-
                 let e = document.getElementById(id); 
-
                 if(e) e.style.background = state ? "green" : "red"; 
-
             }
-
-
 
             function number(v) { return (v == null) ? "--" : Number(v).toFixed(1); }
 
-
-
             function updateBattery(id, val, alarm) {
-
                 let e = document.getElementById(id);
-
                 if(e) {
-
-                    e.innerHTML = (val != null) ? val + " V" : "-- V";
-
+                    e.innerHTML = (val != null) ? Number(val).toFixed(1) + " V" : "-- V";
                     e.className = alarm ? "value alarm" : "value";
-
                 }
-
             }
-
-
 
             function toggleControl(cmdName, state) {
-
                 client.publish("boat2/cmd", JSON.stringify({ "cmd": cmdName, "value": state }));
-
             }
-
         }
-
     </script>
-
 </body>
-
-</html> 
-
+</html>
