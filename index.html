@@ -3,30 +3,54 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Capicua - Sistema de Bordo</title>
+    <title>Capicua - Sistema de Bordo Completo</title>
     <style>
         body { font-family: Arial, sans-serif; background: #121212; color: #fff; text-align: center; margin: 0; padding: 20px; }
-        .card { background: #1e1e1e; padding: 15px; margin: 10px auto; border-radius: 8px; max-width: 400px; box-shadow: 0 4px 6px rgba(0,0,0,0.3); }
+        .card { background: #1e1e1e; padding: 15px; margin: 10px auto; border-radius: 8px; max-width: 450px; box-shadow: 0 4px 6px rgba(0,0,0,0.3); }
         .alarm-on { color: #ff4444; font-weight: bold; animation: blink 1s infinite; }
         .alarm-off { color: #00C851; font-weight: bold; }
         @keyframes blink { 0% { opacity: 1; } 50% { opacity: 0.4; } 100% { opacity: 1; } }
         h3 { margin-top: 0; color: #33b5e5; }
+        button { background: #33b5e5; color: white; border: none; padding: 10px 15px; margin: 5px; border-radius: 5px; cursor: pointer; font-weight: bold; }
+        button:active { background: #0099cc; }
     </style>
 </head>
 <body>
-    <h1>Capicua - Sistema de Bordo</h1>
+    <h1>Capicua - Panel de Bordo</h1>
     
+    <!-- Baterías y Alarmas -->
     <div class="card">
-        <h3>Baterías y Alarmas</h3>
+        <h3>Baterías y Sensores</h3>
         <p>Motor: <span id="bat_motor" class="alarm-off">0.0 V</span></p>
         <p>Servicio: <span id="bat_service" class="alarm-off">0.0 V</span></p>
         <p>Proa: <span id="bat_bow" class="alarm-off">0.0 V</span></p>
         <p>Sentina (Agua): <span id="bilge_alarm" class="alarm-off">OK</span></p>
     </div>
 
+    <!-- Navegación y GPS -->
     <div class="card">
-        <h3>Navegación</h3>
+        <h3>Navegación & GPS</h3>
+        <p>GPS Fix: <span id="gps_fix" style="font-weight:bold;">NO FIX</span></p>
+        <p>Latitud: <span id="lat">0.00000</span></p>
+        <p>Longitud: <span id="lon">0.00000</span></p>
         <p>Profundidad (Pr): <span id="depth">0.0</span> m</p>
+        <p>Viento: <span id="wind_speed">0.0</span> kts / <span id="wind_angle">0</span>°</p>
+    </div>
+
+    <!-- Control de Salidas (Llaves O1 a O5) -->
+    <div class="card">
+        <h3>Control de Salidas</h3>
+        <p>Salida 1: <span id="state_o1">OFF</span> <button onclick="sendCmd('o1', true)">ON</button><button onclick="sendCmd('o1', false)">OFF</button></p>
+        <p>Salida 2: <span id="state_o2">OFF</span> <button onclick="sendCmd('o2', true)">ON</button><button onclick="sendCmd('o2', false)">OFF</button></p>
+        <p>Salida 3: <span id="state_o3">OFF</span> <button onclick="sendCmd('o3', true)">ON</button><button onclick="sendCmd('o3', false)">OFF</button></p>
+        <p>Deshumidificador (O4): <span id="state_o4">OFF</span> <button onclick="sendCmd('o4', true)">ON</button><button onclick="sendCmd('o4', false)">OFF</button></p>
+        <p>GPS Control (O5): <span id="state_o5">OFF</span> <button onclick="sendCmd('o5', true)">ON</button><button onclick="sendCmd('o5', false)">OFF</button></p>
+    </div>
+
+    <!-- Estado de Conexiones -->
+    <div class="card">
+        <h3>Estado del Sistema</h3>
+        <p>WiFi: <span id="wifi_st">OFF</span> | MQTT: <span id="mqtt_st">OFF</span> | BT: <span id="bt_st">OFF</span></p>
     </div>
 
     <script>
@@ -40,37 +64,68 @@
             if (d.bm !== undefined) {
                 let bm = Number(d.bm);
                 let alarmMotor = bm < MOTOR_LOW;
-                document.getElementById("bat_motor").innerText = bm.toFixed(1) + " V";
-                document.getElementById("bat_motor").className = alarmMotor ? "alarm-on" : "alarm-off";
+                let el = document.getElementById("bat_motor");
+                el.innerText = bm.toFixed(1) + " V";
+                el.className = alarmMotor ? "alarm-on" : "alarm-off";
             }
 
             // 2. Batería Servicio
             if (d.bs !== undefined) {
                 let bs = Number(d.bs);
                 let alarmService = bs < SERVICE_LOW;
-                document.getElementById("bat_service").innerText = bs.toFixed(1) + " V";
-                document.getElementById("bat_service").className = alarmService ? "alarm-on" : "alarm-off";
+                let el = document.getElementById("bat_service");
+                el.innerText = bs.toFixed(1) + " V";
+                el.className = alarmService ? "alarm-on" : "alarm-off";
             }
 
             // 3. Batería Proa
             if (d.bb !== undefined) {
                 let bb = Number(d.bb);
                 let alarmBow = bb < BOW_LOW;
-                document.getElementById("bat_bow").innerText = bb.toFixed(1) + " V";
-                document.getElementById("bat_bow").className = alarmBow ? "alarm-on" : "alarm-off";
+                let el = document.getElementById("bat_bow");
+                el.innerText = bb.toFixed(1) + " V";
+                el.className = alarmBow ? "alarm-on" : "alarm-off";
             }
 
-            // 4. Sentina (Ag) - Exactamente como funcionaba antes con tu variable d.Ag
+            // 4. Sentina (Ag)
             if (d.Ag !== undefined) {
                 let bilgeEl = document.getElementById("bilge_alarm");
                 bilgeEl.innerText = d.Ag ? "ALARMA" : "OK";
                 bilgeEl.className = d.Ag ? "alarm-on" : "alarm-off";
             }
 
-            // 5. Profundidad (Pr)
-            if (d.Pr !== undefined) {
-                document.getElementById("depth").innerText = Number(d.Pr).toFixed(1);
+            // 5. GPS y Posición
+            if (d.lat !== undefined) document.getElementById("lat").innerText = Number(d.lat).toFixed(5);
+            if (d.lon !== undefined) document.getElementById("lon").innerText = Number(d.lon).toFixed(5);
+            if (d.gps !== undefined) {
+                let gpsEl = document.getElementById("gps_fix");
+                gpsEl.innerText = d.gps ? "FIX OK" : "NO FIX";
+                gpsEl.style.color = d.gps ? "#00C851" : "#ff4444";
             }
+
+            // 6. Navegación (Profundidad y Viento)
+            if (d.Pr !== undefined) document.getElementById("depth").innerText = Number(d.Pr).toFixed(1);
+            if (d.wind_speed !== undefined) document.getElementById("wind_speed").innerText = Number(d.wind_speed).toFixed(1);
+            if (d.wind_angle !== undefined) document.getElementById("wind_angle").innerText = Number(d.wind_angle).toFixed(0);
+
+            // 7. Estados de las Salidas (o1 - o5)
+            if (d.o1 !== undefined) { document.getElementById("state_o1").innerText = d.o1 ? "ON" : "OFF"; document.getElementById("state_o1").style.color = d.o1 ? "#00C851" : "#ff4444"; }
+            if (d.o2 !== undefined) { document.getElementById("state_o2").innerText = d.o2 ? "ON" : "OFF"; document.getElementById("state_o2").style.color = d.o2 ? "#00C851" : "#ff4444"; }
+            if (d.o3 !== undefined) { document.getElementById("state_o3").innerText = d.o3 ? "ON" : "OFF"; document.getElementById("state_o3").style.color = d.o3 ? "#00C851" : "#ff4444"; }
+            if (d.o4 !== undefined) { document.getElementById("state_o4").innerText = d.o4 ? "ON" : "OFF"; document.getElementById("state_o4").style.color = d.o4 ? "#00C851" : "#ff4444"; }
+            if (d.o5 !== undefined) { document.getElementById("state_o5").innerText = d.o5 ? "ON" : "OFF"; document.getElementById("state_o5").style.color = d.o5 ? "#00C851" : "#ff4444"; }
+
+            // 8. Estados de Conectividad
+            if (d.wi !== undefined) document.getElementById("wifi_st").innerText = d.wi;
+            if (d.mq !== undefined) document.getElementById("mqtt_st").innerText = d.mq;
+            if (d.bt !== undefined) document.getElementById("bt_st").innerText = d.bt;
+        }
+
+        // Función auxiliar para enviar comandos si usas MQTT/WebSocket hacia el ESP32
+        function sendCmd(cmdName, valueState) {
+            let payload = JSON.stringify({ cmd: cmdName, value: valueState });
+            console.log("Enviando comando:", payload);
+            // Aquí debes incluir tu lógica de publicación si manejas MQTT/WebSockets desde el navegador
         }
     </script>
 </body>
