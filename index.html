@@ -36,40 +36,46 @@
         const BOW_LOW = 12.0;
 
         function updateUI(d) {
-            // 1. Procesamiento de voltajes y evaluación local de alarmas
-            let bm = d.bm !== undefined ? d.bm : 0;
-            let bs = d.bs !== undefined ? d.bs : 0;
-            let bb = d.bb !== undefined ? d.bb : 0;
+            // 1. Batería Motor
+            if (d.bm !== undefined) {
+                let bm = Number(d.bm);
+                let alarmMotor = bm < MOTOR_LOW;
+                let el = document.getElementById("bat_motor");
+                el.innerText = bm.toFixed(1) + " V";
+                el.className = alarmMotor ? "alarm-on" : "alarm-off";
+            }
 
-            let alarmMotor = bm < MOTOR_LOW;
-            let alarmService = bs < SERVICE_LOW;
-            let alarmBow = bb < BOW_LOW;
+            // 2. Batería Servicio
+            if (d.bs !== undefined) {
+                let bs = Number(d.bs);
+                let alarmService = bs < SERVICE_LOW;
+                let el = document.getElementById("bat_service");
+                el.innerText = bs.toFixed(1) + " V";
+                el.className = alarmService ? "alarm-on" : "alarm-off";
+            }
 
-            // Actualizar elementos en pantalla
-            document.getElementById("bat_motor").innerText = bm.toFixed(1) + " V";
-            document.getElementById("bat_motor").className = alarmMotor ? "alarm-on" : "alarm-off";
+            // 3. Batería Proa
+            if (d.bb !== undefined) {
+                let bb = Number(d.bb);
+                let alarmBow = bb < BOW_LOW;
+                let el = document.getElementById("bat_bow");
+                el.innerText = bb.toFixed(1) + " V";
+                el.className = alarmBow ? "alarm-on" : "alarm-off";
+            }
 
-            document.getElementById("bat_service").innerText = bs.toFixed(1) + " V";
-            document.getElementById("bat_service").className = alarmService ? "alarm-on" : "alarm-off";
-
-            document.getElementById("bat_bow").innerText = bb.toFixed(1) + " V";
-            document.getElementById("bat_bow").className = alarmBow ? "alarm-on" : "alarm-off";
-
-            // 2. Profundidad (Pr)
+            // 4. Profundidad (Pr)
             if (d.Pr !== undefined) {
                 document.getElementById("depth").innerText = Number(d.Pr).toFixed(1);
             }
 
-            // 3. Sentina (Ag)
+            // 5. Sentina (Ag) - Tal cual como funcionaba antes
             if (d.Ag !== undefined) {
                 let bilgeEl = document.getElementById("bilge_alarm");
-                bilgeEl.innerText = d.Ag ? "¡AGUA DETECTADA!" : "OK";
+                // Si d.Ag es true (hay agua), muestra alarma; si es false, muestra OK
+                bilgeEl.innerText = d.Ag ? "ALARMA" : "OK";
                 bilgeEl.className = d.Ag ? "alarm-on" : "alarm-off";
             }
         }
-
-        // NOTA: Asegúrate de llamar a updateUI(objetoJSON) dentro de tu función 
-        // que recibe los mensajes de MQTT o WebSocket (ej. client.on('message', ...))
     </script>
 </body>
 </html>
