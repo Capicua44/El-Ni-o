@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Capicua - Panel de Bordo</title>
+    <title>Capicua - Sistema de Bordo</title>
     <style>
         body { font-family: Arial, sans-serif; background: #121212; color: #fff; text-align: center; margin: 0; padding: 20px; }
         .card { background: #1e1e1e; padding: 15px; margin: 10px auto; border-radius: 8px; max-width: 400px; box-shadow: 0 4px 6px rgba(0,0,0,0.3); }
@@ -30,7 +30,7 @@
     </div>
 
     <script>
-        // Umbrales de baja tensión configurados localmente
+        // Umbrales locales para las baterías
         const MOTOR_LOW = 12.0;
         const SERVICE_LOW = 11.8;
         const BOW_LOW = 12.0;
@@ -40,40 +40,36 @@
             if (d.bm !== undefined) {
                 let bm = Number(d.bm);
                 let alarmMotor = bm < MOTOR_LOW;
-                let el = document.getElementById("bat_motor");
-                el.innerText = bm.toFixed(1) + " V";
-                el.className = alarmMotor ? "alarm-on" : "alarm-off";
+                document.getElementById("bat_motor").innerText = bm.toFixed(1) + " V";
+                document.getElementById("bat_motor").className = alarmMotor ? "alarm-on" : "alarm-off";
             }
 
             // 2. Batería Servicio
             if (d.bs !== undefined) {
                 let bs = Number(d.bs);
                 let alarmService = bs < SERVICE_LOW;
-                let el = document.getElementById("bat_service");
-                el.innerText = bs.toFixed(1) + " V";
-                el.className = alarmService ? "alarm-on" : "alarm-off";
+                document.getElementById("bat_service").innerText = bs.toFixed(1) + " V";
+                document.getElementById("bat_service").className = alarmService ? "alarm-on" : "alarm-off";
             }
 
             // 3. Batería Proa
             if (d.bb !== undefined) {
                 let bb = Number(d.bb);
                 let alarmBow = bb < BOW_LOW;
-                let el = document.getElementById("bat_bow");
-                el.innerText = bb.toFixed(1) + " V";
-                el.className = alarmBow ? "alarm-on" : "alarm-off";
+                document.getElementById("bat_bow").innerText = bb.toFixed(1) + " V";
+                document.getElementById("bat_bow").className = alarmBow ? "alarm-on" : "alarm-off";
             }
 
-            // 4. Profundidad (Pr)
-            if (d.Pr !== undefined) {
-                document.getElementById("depth").innerText = Number(d.Pr).toFixed(1);
-            }
-
-            // 5. Sentina (Ag) - Tal cual como funcionaba antes
+            // 4. Sentina (Ag) - Exactamente como funcionaba antes con tu variable d.Ag
             if (d.Ag !== undefined) {
                 let bilgeEl = document.getElementById("bilge_alarm");
-                // Si d.Ag es true (hay agua), muestra alarma; si es false, muestra OK
                 bilgeEl.innerText = d.Ag ? "ALARMA" : "OK";
                 bilgeEl.className = d.Ag ? "alarm-on" : "alarm-off";
+            }
+
+            // 5. Profundidad (Pr)
+            if (d.Pr !== undefined) {
+                document.getElementById("depth").innerText = Number(d.Pr).toFixed(1);
             }
         }
     </script>
