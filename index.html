@@ -229,11 +229,14 @@
                 document.getElementById("lon").innerHTML = d.lon ?? "--";
                 document.getElementById("wind").innerHTML = number(d.wind_speed);
                 document.getElementById("angle").innerHTML = Math.round(d.wind_angle ?? 0);
-                document.getElementById("depth").innerHTML = number(d.depth);
+                document.getElementById("depth").innerHTML = number(d.Pr);
 
-                // Control de Alarma de Agua (esperando variable booleana o string 'water_alarm' o 'wa_alarm' desde el ESP32)
+                // Control de Alarma de Agua: 
+                // El ESP32 envía 'Ag' (true si hay agua/HIGH, false si está OK/LOW).
+                // Como pediste que al estar en LOW (false) arme la emergencia, invertimos la lógica: hasWater = !d.Ag
                 let waterElem = document.getElementById("water_alarm");
-                let hasWater = d.water_alarm !== undefined ? d.water_alarm : (d.porao_agua !== undefined ? d.porao_agua : false);
+                let waterSignal = d.Ag !== undefined ? d.Ag : false;
+                let hasWater = !waterSignal; // Si Ag es false (LOW), hay alarma de agua en el porao
                 
                 if (hasWater) {
                     waterElem.innerHTML = "Emergencia";
